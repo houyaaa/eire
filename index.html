@@ -58,7 +58,17 @@ section{display:flex;flex-direction:column;gap:12px}
 .week .wd{font-size:12px;color:var(--mute)}
 .week .wd.on{color:var(--ink);font-weight:700}
 .dayc{position:relative;justify-self:center;width:40px;height:40px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px}
-.dayc.today{background:var(--sun)}
+.dayc{border:0;font-family:var(--fd);color:var(--ink);cursor:pointer;padding:0}
+.dayc:disabled{cursor:default;opacity:.45}
+.dayc.today{box-shadow:inset 0 0 0 2px var(--sun-deep)}
+.dayc.sel{background:var(--sun);box-shadow:none}
+.weekNav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px}
+.weekNav .arr{width:32px;height:32px;border-radius:50%;border:0;background:var(--card);cursor:pointer;font:inherit;font-size:15px;color:var(--ink)}
+.weekNav .arr:disabled{opacity:.3;cursor:default}
+.weekNav b{font-size:14px}
+.todayBtn{border:0;background:var(--ink);color:var(--card);font:inherit;font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;cursor:pointer}
+.editBar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--sun);border-radius:14px;padding:8px 8px 8px 14px;font-size:14px;font-weight:700}
+.acts{display:flex;justify-content:flex-end;gap:2px;margin:-4px -4px -6px 0}
 .dayc.past{color:var(--mute)}
 .dayc .pins{position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);display:flex;gap:3px}
 .dayc .pins i{width:6px;height:6px;border-radius:50%;background:var(--sun-deep)}
@@ -305,7 +315,7 @@ if(!S||!S.weights)S=sample();
 if(!S.workouts)S.workouts=[];
 if(!S.cond)S.cond={};
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-var V={tab:'today',mealDay:today(),range:28,sheet:false,condDay:today(),hideCond:true};
+var V={tab:'today',mealDay:today(),range:28,sheet:false,condDay:today(),hideCond:true,selDay:today(),weekOff:0,wDay:null,xDay:null,edit:null};
 function toast(m){var el=document.getElementById('toast');el.textContent=m;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){el.hidden=true},1800)}
 
 function shotsSorted(){return S.shots.slice().sort(function(a,b){return (b.d+b.t).localeCompare(a.d+a.t)})}
@@ -325,11 +335,24 @@ function mealCards(day){
   var ms=S.meals.filter(function(m){return m.d===day}).sort(function(a,b){return a.t.localeCompare(b.t)});
   if(!ms.length)return '<div class="empty">아직 기록이 없어요</div>';
   return '<div class="list">'+ms.map(function(m){
-    return '<article class="meal"><div class="row between"><span class="type" style="background:'+(MEALC[m.type]||'var(--bg)')+'">'+esc(m.type)+'</span><span class="sm mute num">'+esc(m.t)+'</span></div><div class="what">'+esc(m.what)+'</div>'+(m.moods&&m.moods.length?'<div class="minis">'+minis(m.moods)+'</div>':'')+(m.memo?'<p class="memo">'+esc(m.memo)+'</p>':'')+'<div style="text-align:right;margin:-4px -4px -6px 0"><button class="link" data-act="del" data-kind="meals" data-id="'+m.id+'">삭제</button></div></article>';
+    return '<article class="meal"><div class="row between"><span class="type" style="background:'+(MEALC[m.type]||'var(--bg)')+'">'+esc(m.type)+'</span><span class="sm mute num">'+esc(m.t)+'</span></div><div class="what">'+esc(m.what)+'</div>'+(m.moods&&m.moods.length?'<div class="minis">'+minis(m.moods)+'</div>':'')+(m.memo?'<p class="memo">'+esc(m.memo)+'</p>':'')+'<div class="acts"><button class="link" data-act="edit" data-kind="meals" data-id="'+m.id+'">수정</button><button class="link" data-act="del" data-kind="meals" data-id="'+m.id+'">삭제</button></div></article>';
   }).join('')+'</div>';
 }
 
 /* ---------- 홈 ---------- */
+function dayView(d,a){
+  var w=a.find(function(x){return x.d===d}), cs=condScore(S.cond[d]);
+  var xs=S.workouts.filter(function(x){return x.d===d}), sh=S.shots.filter(function(x){return x.d===d});
+  var h='<p class="sm mute" style="margin-top:-12px">이날 기록을 누르면 고칠 수 있어요</p>';
+  h+='<section style="gap:10px">';
+  if(sh.length)h+=sh.map(function(x){return '<button class="wcard" style="background:var(--sun)" data-act="edit" data-kind="shots" data-id="'+x.id+'"><div class="grow"><p class="sm">주사</p><b class="num">'+esc(x.dose)+'<small> mg</small></b><p class="sm">'+esc(x.t)+' · '+esc(x.site)+'</p></div><span class="pillbtn" style="margin:0">수정</span></button>'}).join('');
+  h+='<button class="wcard" data-act="go" data-tab="weight" data-day="'+d+'"><div class="grow"><p class="sm">체중</p><b class="num">'+(w?w.kg+'<small> kg</small>':'기록 없음')+'</b></div><span class="pillbtn" style="margin:0">'+(w?'수정':'추가')+'</span></button>';
+  h+='<button class="ccard" data-act="go" data-tab="cond" data-day="'+d+'"><span class="face"><svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">'+sunFace(22,23,17,cs==null?'happy':CFACE[cs])+'</svg></span><div class="grow"><p class="sm">컨디션</p><b>'+(cs==null?'기록 없음':CLAB[cs])+'</b></div><span class="pillbtn" style="margin:0">'+(cs==null?'추가':'수정')+'</span></button>';
+  h+='</section>';
+  h+='<section><div class="row between"><h2>식사</h2><button class="more" data-act="go" data-tab="meal" data-day="'+d+'">추가하기</button></div>'+mealCards(d)+'</section>';
+  h+='<section><div class="row between"><h2>운동</h2><button class="more" data-act="go" data-tab="workout" data-day="'+d+'">추가하기</button></div>'+(xs.length?'<div class="list">'+xs.map(workoutCard).join('')+'</div>':'<div class="empty">아직 기록이 없어요</div>')+'</section>';
+  return h;
+}
 function spark(a){
   a=a.slice(-14);if(a.length<2)return '';
   var W=110,H=46,ks=a.map(function(w){return w.kg}),lo=Math.min.apply(null,ks),hi=Math.max.apply(null,ks);if(hi-lo<.5){hi+=.25;lo-=.25}
@@ -338,20 +361,21 @@ function spark(a){
   return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" aria-hidden="true"><polyline points="'+pts.map(function(p){return p.join(',')}).join(' ')+'" fill="none" stroke="#26241F" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="'+l[0]+'" cy="'+l[1]+'" r="4" fill="#fff" stroke="#26241F" stroke-width="2"/></svg>';
 }
 function weekStrip(){
-  var t=today(), dow=(parseD(t).getDay()+6)%7, mon=addDays(t,-dow), s=shotState();
+  var t=today(), dow=(parseD(t).getDay()+6)%7, mon=addDays(addDays(t,-dow),V.weekOff*7), s=shotState(), sel=V.selDay;
   var shotDays={},runDays={};S.shots.forEach(function(x){shotDays[x.d]=1});if(s.next)shotDays[s.next]=1;S.workouts.forEach(function(x){runDays[x.d]=1});
-  var h='<div class="week">';
-  for(var i=0;i<7;i++){var d=addDays(mon,i);h+='<span class="wd'+(d===t?' on':'')+'">'+'월화수목금토일'[i]+'</span>'}
-  for(var j=0;j<7;j++){var d2=addDays(mon,j);h+='<span class="dayc'+(d2===t?' today':'')+(d2<t?' past':'')+'">'+parseD(d2).getDate()+((shotDays[d2]||runDays[d2])?'<span class="pins">'+(shotDays[d2]?'<i aria-label="주사"></i>':'')+(runDays[d2]?'<i class="run" aria-label="운동"></i>':'')+'</span>':'')+'</span>'}
+  var h='<div class="weekNav"><button class="arr" data-act="wk" data-v="-1" aria-label="지난주">‹</button><b class="num">'+fmtS(mon)+' – '+fmtS(addDays(mon,6))+'</b>'+(sel!==t||V.weekOff?'<button class="todayBtn" data-act="seltoday">오늘로</button>':'<span style="width:58px"></span>')+'<button class="arr" data-act="wk" data-v="1" aria-label="다음주"'+(V.weekOff>=0?' disabled':'')+'>›</button></div><div class="week">';
+  for(var i=0;i<7;i++){var d=addDays(mon,i);h+='<span class="wd'+(d===sel?' on':'')+'">'+'월화수목금토일'[i]+'</span>'}
+  for(var j=0;j<7;j++){var d2=addDays(mon,j);h+='<button class="dayc'+(d2===t?' today':'')+(d2===sel?' sel':'')+(d2<t?' past':'')+'" data-act="sel" data-d="'+d2+'"'+(d2>t?' disabled':'')+' aria-label="'+fmt(d2)+'" aria-pressed="'+(d2===sel)+'">'+parseD(d2).getDate()+((shotDays[d2]||runDays[d2])?'<span class="pins">'+(shotDays[d2]?'<i aria-label="주사"></i>':'')+(runDays[d2]?'<i class="run" aria-label="운동"></i>':'')+'</span>':'')+'</button>'}
   return h+'</div><div class="legend"><span><i></i>주사</span><span><i class="run"></i>운동</span></div>';
 }
 function viewToday(){
-  var t=today(), s=shotState(), a=wSorted(), lw=a[a.length-1], tw=a.find(function(w){return w.d===t});
+  var t=V.selDay||today(), isT=t===today(), s=shotState(), a=wSorted(), lw=a[a.length-1], tw=a.find(function(w){return w.d===t});
   var h=(S.sample?'<div class="banner"><span>지금은 예시 기록이에요</span><button class="btn soft small" data-act="clear" style="background:var(--bg)">예시 지우기</button></div>':'');
-  var hi=s.kind==='due'?'오늘은 주사 날이에요':s.kind==='late'?'주사 날을 놓쳤어요':'오늘도 가볍게';
+  var hi=!isT?fmt(t):s.kind==='due'?'오늘은 주사 날이에요':s.kind==='late'?'주사 날을 놓쳤어요':'오늘도 가볍게';
   h+='<header class="top"><h1>'+hi+'</h1><button class="avatar" data-act="go" data-tab="settings" aria-label="설정과 백업" style="border:0;padding:0;cursor:pointer">'+avatar()+'</button></header>';
   h+='<section>'+weekStrip()+'</section>';
 
+  if(!isT)return h+dayView(t,a);
   var pk=pkNow();
   var title,sub,mood,btn='',cls='hero',sy=78;
   if(s.kind==='none'){title='첫 주사를 기록해요';sub='맞은 날을 남기면 일주일 뒤에 알려드려요';mood='happy';btn='기록하기';cls+=' calm';}
@@ -362,9 +386,9 @@ function viewToday(){
   h+='<section><div class="row between"><h2>주사</h2><button class="more" data-act="go" data-tab="shot">전체 보기</button></div>';
   h+='<div class="heroRow"><button class="'+cls+'" data-act="go" data-tab="shot"><span class="t">'+title+'</span><span class="s">'+esc(sub)+'</span>'+(pk?'<span class="lvl"><i></i>약효 '+pk.pct+'% · '+pk.label+'</span>':'')+(btn?'<span class="pillbtn">'+btn+'</span>':'')+scene(mood,sy)+'</button>';
   var ch=null;if(lw&&a.length>1)ch=Math.round((lw.kg-a[a.length-2].kg)*10)/10;
-  h+='<button class="wcard" data-act="go" data-tab="weight"><div class="grow"><p class="sm">체중'+(tw?'':' · 오늘 아직 안 쟀어요')+'</p><b class="num">'+(lw?lw.kg+'<small> kg</small>':'기록 없음')+'</b>'+(ch!=null?'<p class="sm">지난 기록보다 '+(ch<=0?Math.abs(ch)+'kg 줄었어요':ch+'kg 늘었어요')+'</p>':'')+'</div>'+spark(a)+'</button>';
+  h+='<button class="wcard" data-act="go" data-tab="weight" data-day="'+t+'"><div class="grow"><p class="sm">체중'+(tw?'':' · 오늘 아직 안 쟀어요')+'</p><b class="num">'+(lw?lw.kg+'<small> kg</small>':'기록 없음')+'</b>'+(ch!=null?'<p class="sm">지난 기록보다 '+(ch<=0?Math.abs(ch)+'kg 줄었어요':ch+'kg 늘었어요')+'</p>':'')+'</div>'+spark(a)+'</button>';
   var cs=condScore(S.cond[t]);
-  h+='<button class="ccard" data-act="go" data-tab="cond"><span class="face"><svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">'+sunFace(22,23,17,cs==null?'happy':CFACE[cs])+'</svg></span><div class="grow"><p class="sm">오늘 컨디션</p><b>'+(cs==null?'아직 기록 전이에요':CLAB[cs])+'</b></div></button></div></section>';
+  h+='<button class="ccard" data-act="go" data-tab="cond" data-day="'+t+'"><span class="face"><svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">'+sunFace(22,23,17,cs==null?'happy':CFACE[cs])+'</svg></span><div class="grow"><p class="sm">오늘 컨디션</p><b>'+(cs==null?'아직 기록 전이에요':CLAB[cs])+'</b></div></button></div></section>';
 
   var tm=S.meals.filter(function(m){return m.d===t});
   var moodsToday=[];tm.forEach(function(m){(m.moods||[]).forEach(function(x){if(moodsToday.indexOf(x)<0)moodsToday.push(x)})});
@@ -375,7 +399,7 @@ function viewToday(){
   h+='<button class="qc" style="background:var(--mint)" data-act="go" data-tab="workout"><h3>운동 기록</h3><p>'+(wk.count?'이번 주 '+wk.days+'일 · '+wk.min+'분 움직였어요':'이번 주 첫 운동을 남겨요')+'</p><div class="foot"><span>이번 주</span><span class="tag">운동</span></div></button>';
   h+='<button class="qc" style="background:var(--sky)" data-act="go" data-tab="weight"><h3>체중 재기</h3><p>'+(tw?'오늘 '+tw.kg+'kg 기록했어요':'아직 오늘 기록이 없어요')+'</p><div class="foot"><span>'+(lw?'최근 '+fmtS(lw.d):'')+'</span><span class="tag">체중</span></div></button>';
   h+='</div></section>';
-  h+='<section><div class="row between"><h2>오늘의 식사</h2><button class="more" data-act="go" data-tab="meal">추가하기</button></div>'+mealCards(t)+'</section>';
+  h+='<section><div class="row between"><h2>오늘의 식사</h2><button class="more" data-act="go" data-tab="meal" data-day="'+t+'">추가하기</button></div>'+mealCards(t)+'</section>';
   return h;
 }
 
@@ -408,8 +432,9 @@ function viewWeight(){
     h+='<div class="stats"><div class="stat" style="background:var(--sun)"><span class="sm">지금</span><b class="num">'+l.kg+'<small> kg</small></b><span class="sm">'+fmtS(l.d)+' 기록</span></div><div class="stat" style="background:var(--mint)"><span class="sm">'+fmtS(f.d)+'부터</span><b class="num">'+(ch>0?'+':'')+ch+'<small> kg</small></b><span class="sm">'+(wc!=null?'일주일 새 '+(wc>0?'+':'')+wc+'kg':'')+'</span></div></div>';
     h+='<section class="card"><div class="seg" role="group" aria-label="기간">'+[[28,'4주'],[90,'3개월'],[0,'전체']].map(function(r){return '<button data-act="range" data-v="'+r[0]+'" class="'+(V.range===r[0]?'on':'')+'">'+r[1]+'</button>'}).join('')+'</div>'+chart()+'</section>';
   }
-  h+='<form class="card" data-form="weight"><h2>기록하기</h2><div class="two"><label class="f">날짜<input id="wd" type="date" value="'+today()+'" required></label><label class="f">체중 (kg)<input id="wk" type="number" inputmode="decimal" step="0.1" min="20" max="300" required placeholder="'+(a.length?a[a.length-1].kg:'72.4')+'"></label></div><button class="btn" type="submit">저장</button></form>';
-  if(a.length)h+='<section class="card" style="gap:0"><h2 style="margin-bottom:4px">지난 기록</h2>'+a.slice().reverse().slice(0,14).map(function(w){return '<div class="line"><span class="grow">'+fmt(w.d)+'</span><b class="num">'+w.kg+'kg</b><button class="link" data-act="del" data-kind="weights" data-id="'+w.d+'">삭제</button></div>'}).join('')+'</section>';
+  var wd=V.wDay||today(), ew=a.find(function(w){return w.d===wd});
+  h+='<form class="card" data-form="weight">'+(ew?'<div class="editBar"><span>'+fmtS(wd)+' 체중 고치는 중</span><button type="button" class="btn soft small" data-act="cancelEdit">취소</button></div>':'<h2>기록하기</h2>')+'<div class="two"><label class="f">날짜<input id="wd" type="date" value="'+wd+'" max="'+today()+'" required></label><label class="f">체중 (kg)<input id="wk" type="number" inputmode="decimal" step="0.1" min="20" max="300" required value="'+(ew?ew.kg:'')+'" placeholder="'+(a.length?a[a.length-1].kg:'72.4')+'"></label></div><button class="btn" type="submit">'+(ew?'고친 내용 저장':'저장')+'</button></form>';
+  if(a.length)h+='<section class="card" style="gap:0"><h2 style="margin-bottom:4px">지난 기록</h2>'+a.slice().reverse().slice(0,14).map(function(w){return '<div class="line"><span class="grow">'+fmt(w.d)+'</span><b class="num">'+w.kg+'kg</b><button class="link" data-act="edit" data-kind="weights" data-id="'+w.d+'">수정</button><button class="link" data-act="del" data-kind="weights" data-id="'+w.d+'">삭제</button></div>'}).join('')+'</section>';
   return h;
 }
 
@@ -419,12 +444,13 @@ function viewMeal(){
   var d=V.mealDay, isT=d===today();
   var h='<header class="top"><h1>식사</h1></header>';
   h+='<div class="row between"><button class="btn soft small" data-act="day" data-v="-1" aria-label="전날">←</button><b>'+(isT?'오늘':fmt(d))+'</b><button class="btn soft small" data-act="day" data-v="1" aria-label="다음날"'+(isT?' disabled style="opacity:.3"':'')+'>→</button></div>';
-  h+='<form class="card" data-form="meal">';
-  h+='<div class="seg" role="group" aria-label="식사 구분">'+MEALS.map(function(m,i){return '<button type="button" data-act="mtype" data-v="'+m+'" class="'+(i===guessMeal()?'on':'')+'">'+m+'</button>'}).join('')+'</div>';
-  h+='<div class="two"><label class="f" style="grid-column:1/-1">메뉴<input id="mw" type="text" placeholder="닭가슴살 샐러드, 고구마 반 개" required></label><label class="f">시간<input id="mt" type="time" value="'+nowTime()+'" required></label></div>';
-  h+='<div id="moodBox" style="display:flex;flex-direction:column;gap:8px"><span class="glab">먹을 때 마음</span><div class="chips">'+MIND.map(function(m){return '<button type="button" class="chip" data-act="mood" data-v="'+m+'" aria-pressed="false">'+m+'</button>'}).join('')+'</div></div>';
-  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">먹고 나서 몸</span><div class="chips">'+BODY.map(function(m){return '<button type="button" class="chip bodyc" data-act="mood" data-v="'+m+'" aria-pressed="false">'+m+'</button>'}).join('')+'</div></div>';
-  h+='<label class="f">메모<textarea id="mm"></textarea></label><button class="btn" type="submit">저장</button></form>';
+  var em=editing('meals'), mo=em?em.moods||[]:[];
+  h+='<form class="card" data-form="meal">'+(em?'<div class="editBar"><span>'+fmtS(em.d)+' 식사 고치는 중</span><button type="button" class="btn soft small" data-act="cancelEdit">취소</button></div>':'');
+  h+='<div class="seg" role="group" aria-label="식사 구분">'+MEALS.map(function(m,i){return '<button type="button" data-act="mtype" data-v="'+m+'" class="'+((em?em.type===m:i===guessMeal())?'on':'')+'">'+m+'</button>'}).join('')+'</div>';
+  h+='<div class="two"><label class="f" style="grid-column:1/-1">메뉴<input id="mw" type="text" placeholder="닭가슴살 샐러드, 고구마 반 개" required value="'+(em?esc(em.what):'')+'"></label>'+(em?'<label class="f">날짜<input id="mdate" type="date" value="'+em.d+'" max="'+today()+'" required></label>':'')+'<label class="f">시간<input id="mt" type="time" value="'+(em?esc(em.t):nowTime())+'" required></label></div>';
+  h+='<div id="moodBox" style="display:flex;flex-direction:column;gap:8px"><span class="glab">먹을 때 마음</span><div class="chips">'+MIND.map(function(m){var on=mo.indexOf(m)>=0;return '<button type="button" class="chip'+(on?' on':'')+'" data-act="mood" data-v="'+m+'" aria-pressed="'+on+'">'+m+'</button>'}).join('')+'</div></div>';
+  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">먹고 나서 몸</span><div class="chips">'+BODY.map(function(m){var on=mo.indexOf(m)>=0;return '<button type="button" class="chip bodyc'+(on?' on':'')+'" data-act="mood" data-v="'+m+'" aria-pressed="'+on+'">'+m+'</button>'}).join('')+'</div></div>';
+  h+='<label class="f">메모<textarea id="mm">'+(em?esc(em.memo):'')+'</textarea></label><button class="btn" type="submit">'+(em?'고친 내용 저장':'저장')+'</button></form>';
   h+='<section><h2>'+(isT?'오늘':fmtS(d))+' 기록</h2>'+mealCards(d)+'</section>';
   return h;
 }
@@ -438,12 +464,13 @@ function viewShot(){
   var h='<header class="top"><h1>주사</h1></header>';
   h+='<div class="hero'+(s.kind==='due'||s.kind==='late'?'':' calm')+'" style="cursor:default"><span class="t">'+title+'</span><span class="s">'+esc(sub)+'</span>'+scene(mood,s.kind==='due'?70:s.kind==='late'?96:84)+'</div>';
   h+=pkCard();
-  h+='<form class="card" data-form="shot"><h2>맞았어요</h2><div class="two"><label class="f">날짜<input id="sd" type="date" value="'+today()+'" required></label><label class="f">시간<input id="st" type="time" value="'+nowTime()+'" required></label></div>';
-  h+='<label class="f">용량<select id="sdo">'+DOSES.map(function(x){return '<option value="'+x+'"'+(last&&last.dose===x?' selected':'')+'>'+x+' mg</option>'}).join('')+'</select></label>';
-  var sug=last?SITES[(SITES.indexOf(last.site)+1)%SITES.length]:SITES[0];
+  var es=editing('shots');
+  h+='<form class="card" data-form="shot">'+(es?'<div class="editBar"><span>'+fmtS(es.d)+' 주사 고치는 중</span><button type="button" class="btn soft small" data-act="cancelEdit">취소</button></div>':'<h2>맞았어요</h2>')+'<div class="two"><label class="f">날짜<input id="sd" type="date" value="'+(es?es.d:today())+'" max="'+today()+'" required></label><label class="f">시간<input id="st" type="time" value="'+(es?esc(es.t):nowTime())+'" required></label></div>';
+  h+='<label class="f">용량<select id="sdo">'+DOSES.map(function(x){return '<option value="'+x+'"'+((es?es.dose===x:(last&&last.dose===x))?' selected':'')+'>'+x+' mg</option>'}).join('')+'</select></label>';
+  var sug=es?es.site:last?SITES[(SITES.indexOf(last.site)+1)%SITES.length]:SITES[0];
   h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">부위'+(last?' · 지난번 '+esc(last.site):'')+'</span><div class="chips">'+SITES.map(function(x){return '<button type="button" class="chip site'+(x===sug?' on':'')+'" data-act="site" data-v="'+x+'">'+x+'</button>'}).join('')+'</div></div>';
-  h+='<button class="btn sun" type="submit">저장</button></form>';
-  if(ss.length)h+='<section class="card" style="gap:0"><h2 style="margin-bottom:4px">지난 주사</h2>'+ss.map(function(x){return '<div class="line"><div class="grow"><div>'+fmt(x.d)+' <span class="mute num sm">'+esc(x.t)+'</span></div><div class="sm mute">'+esc(x.site)+'</div></div><span class="type num" style="background:var(--sun)">'+esc(x.dose)+'mg</span><button class="link" data-act="del" data-kind="shots" data-id="'+x.id+'">삭제</button></div>'}).join('')+'</section>';
+  h+='<button class="btn sun" type="submit">'+(es?'고친 내용 저장':'저장')+'</button></form>';
+  if(ss.length)h+='<section class="card" style="gap:0"><h2 style="margin-bottom:4px">지난 주사</h2>'+ss.map(function(x){return '<div class="line"><div class="grow"><div>'+fmt(x.d)+' <span class="mute num sm">'+esc(x.t)+'</span></div><div class="sm mute">'+esc(x.site)+'</div></div><span class="type num" style="background:var(--sun)">'+esc(x.dose)+'mg</span><button class="link" data-act="edit" data-kind="shots" data-id="'+x.id+'">수정</button><button class="link" data-act="del" data-kind="shots" data-id="'+x.id+'">삭제</button></div>'}).join('')+'</section>';
   return h;
 }
 
@@ -544,23 +571,26 @@ function weekWorkouts(){
   byDay.forEach(function(m){if(m>0)days++});
   return {mon:mon,byDay:byDay,days:days,min:min,count:count};
 }
+function workoutCard(w){
+  return '<article class="meal"><div class="row between"><span class="type" style="background:var(--mint)">'+esc(w.kind)+'</span><span class="sm mute">'+fmt(w.d)+'</span></div><div class="what num">'+esc(w.min)+'분 · '+esc(w.level)+'</div>'+(w.after&&w.after.length?'<div class="minis">'+w.after.map(function(a){return '<span class="mini" style="background:var(--sky)">'+esc(a)+'</span>'}).join('')+'</div>':'')+(w.memo?'<p class="memo">'+esc(w.memo)+'</p>':'')+'<div class="acts"><button class="link" data-act="edit" data-kind="workouts" data-id="'+w.id+'">수정</button><button class="link" data-act="del" data-kind="workouts" data-id="'+w.id+'">삭제</button></div></article>';
+}
+function editing(kind){if(!V.edit||V.edit.kind!==kind)return null;return S[kind].find(function(x){return x.id===V.edit.id})||null}
 function viewWorkout(){
   var wk=weekWorkouts(), t=today(), max=Math.max(30,Math.max.apply(null,wk.byDay));
   var h='<header class="top"><h1>운동</h1></header>';
   h+='<div class="stats"><div class="stat" style="background:var(--mint)"><span class="sm">이번 주</span><b class="num">'+wk.min+'<small> 분</small></b><span class="sm">'+wk.count+'번 움직였어요</span></div><div class="stat" style="background:var(--lav)"><span class="sm">운동한 날</span><b class="num">'+wk.days+'<small> 일</small></b><span class="sm">일주일 중</span></div></div>';
   h+='<section class="card"><h2>이번 주</h2><div class="bars" role="img" aria-label="요일별 운동 시간">'+wk.byDay.map(function(m,i){var d=addDays(wk.mon,i);return '<div class="bar'+(d===t?' today':'')+'"><em class="num">'+(m?m:'')+'</em><i class="'+(m?'':'zero')+'" style="height:'+(m?Math.max(8,Math.round(m/max*90)):6)+'px"></i><span>'+'월화수목금토일'[i]+'</span></div>'}).join('')+'</div></section>';
-  h+='<form class="card" data-form="workout"><h2>기록하기</h2>';
-  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">종류</span><div class="chips">'+KINDS.map(function(k,i){return '<button type="button" class="chip kind'+(i===0?' on':'')+'" data-act="pick" data-v="'+k+'">'+k+'</button>'}).join('')+'</div></div>';
-  h+='<div class="two"><label class="f">날짜<input id="xd" type="date" value="'+t+'" required></label><label class="f">시작 시간<input id="xt" type="time" value="'+nowTime()+'"></label></div>';
-  h+='<label class="f">운동한 시간 (분)<input id="xm" type="number" inputmode="numeric" min="1" max="600" required placeholder="30"></label>';
+  var ex=editing('workouts'), xa=ex?ex.after||[]:[], xday=V.xDay||t;
+  h+='<form class="card" data-form="workout">'+(ex?'<div class="editBar"><span>'+fmtS(ex.d)+' 운동 고치는 중</span><button type="button" class="btn soft small" data-act="cancelEdit">취소</button></div>':'<h2>기록하기</h2>');
+  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">종류</span><div class="chips">'+KINDS.map(function(k,i){return '<button type="button" class="chip kind'+((ex?ex.kind===k:i===0)?' on':'')+'" data-act="pick" data-v="'+k+'">'+k+'</button>'}).join('')+'</div></div>';
+  h+='<div class="two"><label class="f">날짜<input id="xd" type="date" value="'+(ex?ex.d:xday)+'" max="'+t+'" required></label><label class="f">시작 시간<input id="xt" type="time" value="'+(ex?esc(ex.t):nowTime())+'"></label></div>';
+  h+='<label class="f">운동한 시간 (분)<input id="xm" type="number" inputmode="numeric" min="1" max="600" required placeholder="30" value="'+(ex?ex.min:'')+'"></label>';
   h+='<div class="chips" style="margin-top:-6px">'+[15,30,45,60].map(function(m){return '<button type="button" class="chip" data-act="min" data-v="'+m+'">'+m+'분</button>'}).join('')+'</div>';
-  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">강도</span><div class="seg" role="group" aria-label="강도">'+LEVELS.map(function(l,i){return '<button type="button" data-act="mtype" data-v="'+l+'" class="'+(i===1?'on':'')+'">'+l+'</button>'}).join('')+'</div></div>';
-  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">운동하고 나서</span><div class="chips">'+AFTER.map(function(a){return '<button type="button" class="chip after" data-act="mood" data-v="'+a+'" aria-pressed="false">'+a+'</button>'}).join('')+'</div></div>';
-  h+='<label class="f">메모<textarea id="xmemo" placeholder="스쿼트 3세트, 한강 한 바퀴"></textarea></label><button class="btn" type="submit">저장</button></form>';
+  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">강도</span><div class="seg" role="group" aria-label="강도">'+LEVELS.map(function(l,i){return '<button type="button" data-act="mtype" data-v="'+l+'" class="'+((ex?ex.level===l:i===1)?'on':'')+'">'+l+'</button>'}).join('')+'</div></div>';
+  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">운동하고 나서</span><div class="chips">'+AFTER.map(function(a){var on=xa.indexOf(a)>=0;return '<button type="button" class="chip after'+(on?' on':'')+'" data-act="mood" data-v="'+a+'" aria-pressed="'+on+'">'+a+'</button>'}).join('')+'</div></div>';
+  h+='<label class="f">메모<textarea id="xmemo" placeholder="스쿼트 3세트, 한강 한 바퀴">'+(ex?esc(ex.memo):'')+'</textarea></label><button class="btn" type="submit">'+(ex?'고친 내용 저장':'저장')+'</button></form>';
   var list=S.workouts.slice().sort(function(a,b){return (b.d+b.t).localeCompare(a.d+a.t)}).slice(0,20);
-  h+='<section><h2>지난 운동</h2>'+(list.length?'<div class="list">'+list.map(function(w){
-    return '<article class="meal"><div class="row between"><span class="type" style="background:var(--mint)">'+esc(w.kind)+'</span><span class="sm mute">'+fmt(w.d)+'</span></div><div class="what num">'+esc(w.min)+'분 · '+esc(w.level)+'</div>'+(w.after&&w.after.length?'<div class="minis">'+w.after.map(function(a){return '<span class="mini" style="background:var(--sky)">'+esc(a)+'</span>'}).join('')+'</div>':'')+(w.memo?'<p class="memo">'+esc(w.memo)+'</p>':'')+'<div style="text-align:right;margin:-4px -4px -6px 0"><button class="link" data-act="del" data-kind="workouts" data-id="'+w.id+'">삭제</button></div></article>';
-  }).join('')+'</div>':'<div class="empty">아직 기록이 없어요</div>')+'</section>';
+  h+='<section><h2>지난 운동</h2>'+(list.length?'<div class="list">'+list.map(workoutCard).join('')+'</div>':'<div class="empty">아직 기록이 없어요</div>')+'</section>';
   return h;
 }
 
@@ -591,9 +621,19 @@ document.addEventListener('click',function(e){
   var a=b.dataset.act;
   if(a==='close'){if(e.target===b){V.sheet=false;render();}return;}
   if(a==='sheet'){V.sheet=true;render();return;}
-  if(a==='go'){V.sheet=false;V.tab=b.dataset.tab;if(V.tab==='meal')V.mealDay=today();if(V.tab==='cond'){V.condDay=today();V.hideCond=true;}render();window.scrollTo(0,0);
+  if(a==='go'){var gd=b.dataset.day||today();V.sheet=false;V.edit=null;V.tab=b.dataset.tab;V.mealDay=gd;V.wDay=b.dataset.day||null;V.xDay=b.dataset.day||null;if(V.tab==='cond'){V.condDay=gd;V.hideCond=true;}if(V.tab==='today'&&!b.dataset.day){V.selDay=today();V.weekOff=0;}render();window.scrollTo(0,0);
+    if(b.dataset.day&&b.dataset.day!==today()&&V.tab!=='cond'&&V.tab!=='meal'){var fm=document.querySelector('form.card');if(fm)fm.scrollIntoView({block:'start'});}
     if(b.dataset.focus==='mood'){var mb=document.getElementById('moodBox');if(mb)mb.scrollIntoView({block:'center'});}
     else if(V.tab==='meal'){var i=document.getElementById('mw');if(i&&b.closest('.sheet,.qc'))i.focus();}}
+  else if(a==='sel'){V.selDay=b.dataset.d;render();}
+  else if(a==='seltoday'){V.selDay=today();V.weekOff=0;render();}
+  else if(a==='wk'){V.weekOff=Math.min(0,V.weekOff+(+b.dataset.v));var m0=addDays(addDays(today(),-((parseD(today()).getDay()+6)%7)),V.weekOff*7);V.selDay=V.weekOff===0?today():addDays(m0,6);render();}
+  else if(a==='edit'){
+    var k=b.dataset.kind,id=b.dataset.id;
+    if(k==='weights'){V.tab='weight';V.wDay=id;V.edit=null;}
+    else{var it=S[k].find(function(x){return x.id===id});if(!it)return;V.edit={kind:k,id:id};V.tab=k==='meals'?'meal':k==='shots'?'shot':'workout';if(k==='meals')V.mealDay=it.d;}
+    render();var fm=document.querySelector('form.card');if(fm)fm.scrollIntoView({block:'start'});}
+  else if(a==='cancelEdit'){V.edit=null;V.wDay=null;render();}
   else if(a==='range'){V.range=+b.dataset.v;render();}
   else if(a==='export'){doExport();}
   else if(a==='wipe'){
@@ -630,11 +670,15 @@ document.addEventListener('submit',function(e){
   e.preventDefault();var f=e.target.dataset.form,q=function(id){return document.getElementById(id)};
   if(f==='weight'){
     var kg=parseFloat(q('wk').value), d=q('wd').value;if(!(kg>0)||!d)return;leaveSample();
-    S.weights=S.weights.filter(function(w){return w.d!==d});S.weights.push({d:d,kg:Math.round(kg*10)/10});save();render();toast('체중을 저장했어요');
+    var wasEdit=!!V.wDay&&S.weights.some(function(w){return w.d===V.wDay});
+    if(wasEdit&&V.wDay!==d)S.weights=S.weights.filter(function(w){return w.d!==V.wDay});
+    S.weights=S.weights.filter(function(w){return w.d!==d});S.weights.push({d:d,kg:Math.round(kg*10)/10});V.wDay=null;save();render();toast(wasEdit?'고쳤어요':'체중을 저장했어요');
   }else if(f==='meal'){
     var what=q('mw').value.trim();if(!what)return;
     var type=(e.target.querySelector('[data-act="mtype"].on')||{dataset:{v:'간식'}}).dataset.v;
     var moods=[].map.call(e.target.querySelectorAll('[data-act="mood"].on'),function(x){return x.dataset.v});
+    var em=editing('meals');
+    if(em){em.d=q('mdate').value||em.d;em.t=q('mt').value;em.type=type;em.what=what;em.moods=moods;em.memo=q('mm').value.trim();V.mealDay=em.d;V.edit=null;save();render();toast('고쳤어요');return;}
     var day=V.mealDay;leaveSample();
     S.meals.push({id:uid(),d:day,t:q('mt').value,type:type,what:what,moods:moods,memo:q('mm').value.trim()});save();render();toast('식사를 기록했어요');
   }else if(f==='workout'){
@@ -642,10 +686,15 @@ document.addEventListener('submit',function(e){
     var kind=(e.target.querySelector('[data-act="pick"].on')||{dataset:{v:'기타'}}).dataset.v;
     var level=(e.target.querySelector('[data-act="mtype"].on')||{dataset:{v:'적당히'}}).dataset.v;
     var after=[].map.call(e.target.querySelectorAll('[data-act="mood"].on'),function(x){return x.dataset.v});
+    var ex=editing('workouts');
+    if(ex){ex.d=xd;ex.t=q('xt').value;ex.kind=kind;ex.min=mn;ex.level=level;ex.after=after;ex.memo=q('xmemo').value.trim();V.edit=null;save();render();toast('고쳤어요');return;}
     leaveSample();
     S.workouts.push({id:uid(),d:xd,t:q('xt').value,kind:kind,min:mn,level:level,after:after,memo:q('xmemo').value.trim()});save();render();toast(kind+' '+mn+'분 기록했어요');
   }else if(f==='shot'){
-    var sd=q('sd').value;if(!sd)return;var site=e.target.querySelector('[data-act="site"].on');leaveSample();
+    var sd=q('sd').value;if(!sd)return;var site=e.target.querySelector('[data-act="site"].on');
+    var es=editing('shots');
+    if(es){es.d=sd;es.t=q('st').value;es.dose=q('sdo').value;es.site=site?site.dataset.v:es.site;V.edit=null;save();render();toast('고쳤어요');return;}
+    leaveSample();
     S.shots.push({id:uid(),d:sd,t:q('st').value,dose:q('sdo').value,site:site?site.dataset.v:''});save();render();
     toast('다음 주사는 '+fmt(addDays(shotsSorted()[0].d,7)));
   }

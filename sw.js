@@ -1,5 +1,5 @@
 // 이레 서비스 워커: 오프라인에서도 열리고, 새 버전은 다음 실행 때 반영돼요
-var CACHE = 'eire-v1';
+var CACHE = 'eire-v2';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'fonts/LINESeedKR-Rg.woff2', 'fonts/LINESeedKR-Bd.woff2',
   'icons/icon.svg', 'icons/app_icon_192.png', 'icons/app_icon_512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', function (e) {
