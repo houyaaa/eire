@@ -162,6 +162,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--sun-deep
 .chip.on{background:var(--lav);font-weight:600}
 .chip.bodyc.on{background:var(--mint)}
 .chip.site.on{background:var(--sun)}
+.chip.food.on{background:var(--pink);font-weight:600}
+.chip.add{background:transparent;box-shadow:inset 0 0 0 1.5px var(--line);color:var(--mute)}
+.chip .x{display:none;margin-left:6px;width:18px;height:18px;border-radius:50%;background:var(--ink);color:var(--card);font-size:12px;line-height:18px;text-align:center;font-weight:700}
+.chips.editing .chip.mine .x{display:inline-block}
+.chips.editing .chip.mine{animation:wig .3s ease-in-out infinite alternate}
+@keyframes wig{from{transform:rotate(-1.2deg)}to{transform:rotate(1.2deg)}}
+@media (prefers-reduced-motion: reduce){.chips.editing .chip.mine{animation:none}}
+.addRow{display:flex;gap:6px;width:100%}
+.addRow input{flex:1;padding:8px 12px;min-height:0;border-radius:999px;font-size:16px}
+.addRow button{flex:none}
+.ghead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ghead .link{font-size:12px;padding:2px 4px}
 .glab{font-size:13px;color:var(--mute);font-weight:500}
 
 /* 체중 */
@@ -315,12 +327,13 @@ function sample(){
       {id:uid(),d:t,t:'12:40',type:'점심',what:'김밥 반 줄, 어묵국',moods:['금방 배불렀어요','만족스러웠어요'],memo:'반 줄에서 멈췄는데 충분했다'},
       {id:uid(),d:addDays(t,-1),t:'19:10',type:'저녁',what:'삼겹살 몇 점, 된장찌개',moods:['더부룩했어요','아쉬웠어요'],memo:'기름진 건 아직 부담스럽다'}]};
 }
-function fresh(){return {sample:false,weights:[],shots:[],meals:[],workouts:[],cond:{}}}
+function fresh(){return {sample:false,weights:[],shots:[],meals:[],workouts:[],cond:{},custom:{food:[],mind:[],body:[]}}}
 var S=null;
 try{var raw=localStorage.getItem(KEY);if(raw)S=JSON.parse(raw)}catch(e){}
 if(!S||!S.weights)S=sample();
 if(!S.workouts)S.workouts=[];
 if(!S.cond)S.cond={};
+if(!S.custom)S.custom={food:[],mind:[],body:[]};
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 var V={tab:'today',mealDay:today(),range:28,sheet:false,condDay:today(),hideCond:true,selDay:today(),weekOff:0,wDay:null,xDay:null,edit:null};
 function toast(m){var el=document.getElementById('toast');el.textContent=m;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){el.hidden=true},1800)}
@@ -336,7 +349,7 @@ function shotState(){
   return {kind:'wait',last:last,next:next,dd:dd};
 }
 function wSorted(){return S.weights.slice().sort(function(a,b){return a.d.localeCompare(b.d)})}
-function isBody(m){return BODY.indexOf(m)>=0}
+function isBody(m){return BODY.indexOf(m)>=0||(S.custom&&S.custom.body.indexOf(m)>=0)}
 function minis(ms){return (ms||[]).map(function(x){return '<span class="mini'+(isBody(x)?' b':'')+'">'+esc(x)+'</span>'}).join('')}
 function mealCards(day){
   var ms=S.meals.filter(function(m){return m.d===day}).sort(function(a,b){return a.t.localeCompare(b.t)});
@@ -446,6 +459,11 @@ function viewWeight(){
 }
 
 /* ---------- 식사 ---------- */
+function chipHTML(g,v,on,preset){
+  var cls='chip'+(g==='food'?' food':g==='body'?' bodyc':'')+(preset?'':' mine')+(on?' on':'');
+  return '<button type="button" class="'+cls+'" data-act="'+(g==='food'?'food':'mood')+'" data-v="'+esc(v)+'" aria-pressed="'+!!on+'">'+esc(v)+(preset?'':'<span class="x" data-act="rmChip" aria-label="'+esc(v)+' 지우기">×</span>')+'</button>';
+}
+function foodSync(){var i=document.getElementById('mw');if(!i)return;var cur=i.value.split(',').map(function(x){return x.trim()});document.querySelectorAll('.chip.food').forEach(function(c){var on=cur.indexOf(c.dataset.v)>=0;c.classList.toggle('on',on);c.setAttribute('aria-pressed',on)})}
 function guessMeal(){var h=new Date().getHours();return h<10?0:h<15?1:h<21?2:3}
 function viewMeal(){
   var d=V.mealDay, isT=d===today();
@@ -454,9 +472,12 @@ function viewMeal(){
   var em=editing('meals'), mo=em?em.moods||[]:[];
   h+='<form class="card" data-form="meal">'+(em?'<div class="editBar"><span>'+fmtS(em.d)+' 식사 고치는 중</span><button type="button" class="btn soft small" data-act="cancelEdit">취소</button></div>':'');
   h+='<div class="seg" role="group" aria-label="식사 구분">'+MEALS.map(function(m,i){return '<button type="button" data-act="mtype" data-v="'+m+'" class="'+((em?em.type===m:i===guessMeal())?'on':'')+'">'+m+'</button>'}).join('')+'</div>';
+  var curFood=em?em.what.split(',').map(function(x){return x.trim()}):[];
+  h+='<div style="display:flex;flex-direction:column;gap:8px"><div class="ghead"><span class="glab">자주 먹는 것</span>'+(S.custom.food.length?'<button type="button" class="link" data-act="editChips">편집</button>':'')+'</div><div class="chips" data-group="food">'+S.custom.food.map(function(f){var on=curFood.indexOf(f)>=0;return chipHTML('food',f,on)}).join('')+'<button type="button" class="chip add" data-act="addChip">+ 직접 추가</button></div></div>';
   h+='<div class="two"><label class="f" style="grid-column:1/-1">메뉴<input id="mw" type="text" placeholder="닭가슴살 샐러드, 고구마 반 개" required value="'+(em?esc(em.what):'')+'"></label>'+(em?'<label class="f">날짜<input id="mdate" type="date" value="'+em.d+'" max="'+today()+'" required></label>':'')+'<label class="f">시간<input id="mt" type="time" value="'+(em?esc(em.t):nowTime())+'" required></label></div>';
-  h+='<div id="moodBox" style="display:flex;flex-direction:column;gap:8px"><span class="glab">먹을 때 마음</span><div class="chips">'+MIND.map(function(m){var on=mo.indexOf(m)>=0;return '<button type="button" class="chip'+(on?' on':'')+'" data-act="mood" data-v="'+m+'" aria-pressed="'+on+'">'+m+'</button>'}).join('')+'</div></div>';
-  h+='<div style="display:flex;flex-direction:column;gap:8px"><span class="glab">먹고 나서 몸</span><div class="chips">'+BODY.map(function(m){var on=mo.indexOf(m)>=0;return '<button type="button" class="chip bodyc'+(on?' on':'')+'" data-act="mood" data-v="'+m+'" aria-pressed="'+on+'">'+m+'</button>'}).join('')+'</div></div>';
+  var moodGroup=function(g,label,base,id){var mine=S.custom[g];return '<div'+(id?' id="'+id+'"':'')+' style="display:flex;flex-direction:column;gap:8px"><div class="ghead"><span class="glab">'+label+'</span>'+(mine.length?'<button type="button" class="link" data-act="editChips">편집</button>':'')+'</div><div class="chips" data-group="'+g+'">'+base.map(function(m){return chipHTML(g,m,mo.indexOf(m)>=0,true)}).join('')+mine.map(function(m){return chipHTML(g,m,mo.indexOf(m)>=0)}).join('')+'<button type="button" class="chip add" data-act="addChip">+ 직접 추가</button></div></div>'};
+  h+=moodGroup('mind','먹을 때 마음',MIND,'moodBox');
+  h+=moodGroup('body','먹고 나서 몸',BODY);
   h+='<label class="f">메모<textarea id="mm">'+(em?esc(em.memo):'')+'</textarea></label><button class="btn" type="submit">'+(em?'고친 내용 저장':'저장')+'</button></form>';
   h+='<section><h2>'+(isT?'오늘':fmtS(d))+' 기록</h2>'+mealCards(d)+'</section>';
   return h;
@@ -621,7 +642,7 @@ function render(){
     '<button class="opt" style="background:var(--sky)" data-act="go" data-tab="weight"><i>'+IC.weight+'</i><span><b>체중</b><br><span class="sm mute">오늘 몸무게</span></span></button>'+
     '<button class="opt" style="background:var(--sun)" data-act="go" data-tab="shot"><i>'+IC.shot+'</i><span><b>주사</b><br><span class="sm mute">날짜, 시간, 용량, 부위</span></span></button></div></div>':'';
 }
-function leaveSample(){if(S.sample)S=fresh();}
+function leaveSample(){if(S.sample){var c=S.custom;S=fresh();S.custom=c;}}
 
 document.addEventListener('click',function(e){
   var b=e.target.closest('[data-act]');if(!b)return;
@@ -652,6 +673,21 @@ document.addEventListener('click',function(e){
   else if(a==='day'){var n=addDays(V.mealDay,+b.dataset.v);if(n<=today()){V.mealDay=n;render();}}
   else if(a==='min'){var mi=document.getElementById('xm');if(mi)mi.value=b.dataset.v;}
   else if(a==='mtype'||a==='site'||a==='pick'){b.parentNode.querySelectorAll('button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');}
+  else if(a==='rmChip'){
+    var chip=b.closest('.chip'),grp=chip.closest('.chips'),g=grp.dataset.group,v=chip.dataset.v;
+    S.custom[g]=S.custom[g].filter(function(x){return x!==v});save();chip.remove();
+    if(!grp.querySelector('.chip.mine')){grp.classList.remove('editing');var eb=grp.parentNode.querySelector('[data-act="editChips"]');if(eb)eb.remove();}
+    toast(v+' 지웠어요');}
+  else if(a==='editChips'){var gr=b.closest('div').parentNode.querySelector('.chips');var on=gr.classList.toggle('editing');b.textContent=on?'완료':'편집';}
+  else if(a==='addChip'){
+    var row=document.createElement('div');row.className='addRow';
+    row.innerHTML='<input type="text" maxlength="20" placeholder="'+(b.parentNode.dataset.group==='food'?'예: 단백질 쉐이크':'예: 허전했어요')+'" aria-label="직접 추가"><button type="button" class="btn small" data-act="addOk">추가</button><button type="button" class="btn soft small" data-act="addNo" style="background:var(--bg)">취소</button>';
+    b.hidden=true;b.parentNode.appendChild(row);row.querySelector('input').focus();}
+  else if(a==='addNo'){var r=b.closest('.addRow'),gp=r.parentNode;r.remove();gp.querySelector('.chip.add').hidden=false;}
+  else if(a==='addOk'){addChip(b.closest('.addRow'));}
+  else if(a==='food'){
+    var inp=document.getElementById('mw'),items=inp.value.split(',').map(function(x){return x.trim()}).filter(Boolean),fv=b.dataset.v,ix=items.indexOf(fv);
+    if(ix>=0)items.splice(ix,1);else items.push(fv);inp.value=items.join(', ');foodSync();}
   else if(a==='mood'){b.classList.toggle('on');b.setAttribute('aria-pressed',b.classList.contains('on'));}
   else if(a==='clear'||a==='del'){
     var orig=a==='clear'?'예시 지우기':'삭제';
@@ -666,6 +702,18 @@ document.addEventListener('pointerdown',function(e){if(e.target.closest('#priv')
 ['pointerup','pointercancel','pointerleave'].forEach(function(ev){document.addEventListener(ev,function(){peek(false)})});
 document.addEventListener('contextmenu',function(e){if(e.target.closest('#priv.hid'))e.preventDefault()});
 document.addEventListener('visibilitychange',function(){if(document.hidden&&!V.hideCond){V.hideCond=true;if(V.tab==='cond')render();}});
+function addChip(row){
+  var inp=row.querySelector('input'),v=inp.value.trim().replace(/,/g,' ');if(!v){inp.focus();return;}
+  var grp=row.parentNode,g=grp.dataset.group,base=g==='mind'?MIND:g==='body'?BODY:[];
+  var exist=[].find.call(grp.querySelectorAll('.chip[data-v]'),function(c){return c.dataset.v===v});
+  if(!exist){S.custom[g].push(v);save();var tmp=document.createElement('div');tmp.innerHTML=chipHTML(g,v,false);exist=tmp.firstChild;grp.insertBefore(exist,grp.querySelector('.chip.add'));
+    var head=grp.parentNode.querySelector('.ghead');if(head&&!head.querySelector('[data-act="editChips"]'))head.insertAdjacentHTML('beforeend','<button type="button" class="link" data-act="editChips">편집</button>');}
+  row.remove();grp.querySelector('.chip.add').hidden=false;
+  if(!exist.classList.contains('on'))exist.click();
+  toast(v+' 추가했어요');
+}
+document.addEventListener('keydown',function(e){if(e.key==='Enter'&&e.target.closest&&e.target.closest('.addRow')){e.preventDefault();addChip(e.target.closest('.addRow'));}});
+document.addEventListener('input',function(e){if(e.target.id==='mw')foodSync();});
 document.addEventListener('change',function(e){
   if(e.target.id!=='imp')return;var f=e.target.files[0];if(!f)return;var r=new FileReader();
   r.onload=function(){try{var d=JSON.parse(r.result);if(!d||!d.weights||!d.shots)throw 0;if(!confirm('지금 기록을 백업 파일 내용으로 바꿀까요?'))return;S=Object.assign(fresh(),d);S.sample=false;save();V.tab='today';render();toast('백업을 불러왔어요');}catch(x){toast('이레 백업 파일이 아니에요')}};
